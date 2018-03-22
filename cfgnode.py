@@ -36,16 +36,22 @@ class ConfigNode:
         self.nodes = []
     @classmethod
     def ParseNode(cls, node, script, top = False):
-        while script.getToken(True) != None:
+        while script.tokenAvailable(True):
+            token_start = script.pos
+            if script.getToken(True) == None:
+                break
             if script.token == "\xef\xbb\xbf":
                 continue
             if script.token in (top and ['{', '}', '='] or ['{', '=']):
                 cfg_error(script, "unexpected " + script.token)
             if script.token == '}':
                 return
+            token_end = script.pos
             key = script.token
-            if script.tokenAvailable(True):
+            #print(key,script.line)
+            while script.tokenAvailable(True):
                 script.getToken(True)
+                token_end = script.pos
                 line = script.line
                 if script.token == '=':
                     value = ''
@@ -53,21 +59,35 @@ class ConfigNode:
                         script.getLine()
                         value = script.token
                     node.values.append((key, value, line))
+                    break
                 elif script.token == '{':
                     new_node = ConfigNode()
                     ConfigNode.ParseNode(new_node, script, False)
                     node.nodes.append((key, new_node, line))
+                    break
                 else:
-                    cfg_error(script, "unexpected " + script.token)
+                    #cfg_error(script, "unexpected " + script.token)
+                    key = script.text[token_start:token_end]
         if not top:
             cfg_error(script, "unexpected end of file")
     @classmethod
     def load(cls, text):
-        script = Script("", text, "{}=")
+        script = Script("", text, "{}=", False)
         script.error = cfg_error.__get__(script, Script)
-        node = ConfigNode()
-        ConfigNode.ParseNode(node, script, True)
-        return node
+        nodes = []
+        while script.tokenAvailable(True):
+            node = ConfigNode()
+            ConfigNode.ParseNode(node, script, True)
+            nodes.append(node)
+        if len(nodes) == 1:
+            return nodes[0]
+        else:
+            return nodes
+    @classmethod
+    def loadfile(cls, path):
+        bytes = open(path, "rb").read()
+        text = "".join(map(lambda b: chr(b), bytes))
+        return cls.load(text)
     def GetNode(self, key):
         for n in self.nodes:
             if n[0] == key:
@@ -87,8 +107,18 @@ class ConfigNode:
     def GetValue(self, key):
         for v in self.values:
             if v[0] == key:
-                return v[1]
+                return v[1].strip()
         return None
+    def HasNode(self, key):
+        for n in self.nodes:
+            if n[0] == key:
+                return True
+        return False
+    def HasValue(self, key):
+        for v in self.values:
+            if v[0] == key:
+                return True
+        return False
     def GetValueLine(self, key):
         for v in self.values:
             if v[0] == key:
@@ -100,10 +130,14 @@ class ConfigNode:
             if v[0] == key:
                 values.append(v[1])
         return values
-    def AddNode(self, key):
+    def AddNode(self, key, node):
+        self.nodes.append((key, node))
+        return node
+    def AddNewNode (self, key):
         node = ConfigNode ()
         self.nodes.append((key, node))
         return node
+
     def AddValue(self, key, value):
         self.values.append((key, value))
     def SetValue(self, key, value):
@@ -113,7 +147,7 @@ class ConfigNode:
                 return
         self.AddValue(key, value)
     def ToString(self, level = 0):
-        text = "{ \n"
+        text = "{\n"
         for val in self.values:
             text += "%s%s = %s\n" % ("    " * (level + 1), val[0], val[1])
         for node in self.nodes:
