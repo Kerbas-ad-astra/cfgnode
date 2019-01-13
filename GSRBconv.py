@@ -19,7 +19,7 @@
 
 # <pep8 compliant>
 
-# Converts LaunchSites.cfg (from RSS's KSCSwitcher patch) into RecoveryBeacons.cfg
+# Converts RemoteTech_Settings.cfg (from RSS's RemoteTech patch) into a file suitable as RecoveryBeacons.cfg
 
 from cfgnode import *
 import sys
@@ -49,7 +49,6 @@ def convert(file, LSnode):
     fname2 = arg.split(".")[0] + "_rb_mat.txt"
     text_file = open(fname, 'w')
     text_file.write("// Automatically generated from {0}\n".format(arg))
-    text_file.write("// 500 km range because that's now far downrange the Mercury-Redstone rockets flew.\n")
     text_file.write("@NIMBY:FOR[RealSolarSystem]\n")
     text_file.write(RBnode.ToString())
     text_file.close()
